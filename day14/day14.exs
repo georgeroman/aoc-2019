@@ -24,6 +24,19 @@ defmodule Day14 do
       end
     end
   end
+
+  def fuelForOres(ores, startFuel, endFuel, numProduced, producedBy) do
+    if startFuel >= endFuel do
+      endFuel
+    else
+      midFuel = div(startFuel + endFuel, 2)
+      if calculateNeededForFuel("FUEL", midFuel, numProduced, producedBy, 0, %{}) |> elem(0) > ores do
+        fuelForOres(ores, startFuel, midFuel - 1, numProduced, producedBy)
+      else
+        fuelForOres(ores, midFuel + 1, endFuel, numProduced, producedBy)
+      end
+    end
+  end
 end
 
 {numProduced, producedBy} =
@@ -46,17 +59,13 @@ case System.argv() do
       |> elem(0)
       |> IO.puts
 
-  ["2", hack] ->
-    # Brute-force values for the fuel
+  ["2"] ->
     trillion = 1000000000000
-    startFuel = round(div(trillion, Day14.calculateNeededForFuel("FUEL", 1, numProduced, producedBy, 0, %{}) |> elem(0)) * String.to_float(hack))
+    startFuel = div(trillion, Day14.calculateNeededForFuel("FUEL", 1, numProduced, producedBy, 0, %{}) |> elem(0))
+    endFuel =
+      Stream.iterate(startFuel, fn fuel -> fuel + startFuel end)
+        |> Enum.find(fn fuel -> Day14.calculateNeededForFuel("FUEL", fuel, numProduced, producedBy, 0, %{}) |> elem(0) > trillion end)
 
-    Stream.iterate({startFuel, -1}, fn {fuel, _} ->
-      ores = Day14.calculateNeededForFuel("FUEL", fuel, numProduced, producedBy, 0, %{}) |> elem(0)
-      {fuel + 1, ores}
-    end)
-      |> Enum.take_while(fn {_, ores} -> ores <= trillion end)
-      |> List.last
-      |> (fn {fuel, _} -> fuel - 1 end).()
+    Day14.fuelForOres(trillion, startFuel, endFuel, numProduced, producedBy)
       |> IO.puts
 end
