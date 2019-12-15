@@ -1,71 +1,100 @@
 defmodule Day14 do
-  def getOresIfTerminal(current, producedBy) do
-    first = Enum.at(producedBy[current], 0)
+  def get_ores_if_terminal(current, produced_by) do
+    first = Enum.at(produced_by[current], 0)
     if elem(first, 1) == "ORE", do: elem(first, 0), else: 0
   end
 
-  def calculateNeededForFuel(current, needed, numProduced, producedBy, totalSoFar, extra) do
+  def calculate_needed_for_fuel(current, needed, num_produced, produced_by, total_so_far, extra) do
     if current == "ORE" do
-      {totalSoFar, extra}
+      {total_so_far, extra}
     else
       cond do
         # We have enough extra of this chemical
         Map.get(extra, current, 0) >= needed ->
-          {totalSoFar, Map.put(extra, current, Map.get(extra, current, 0) - needed)}
+          {total_so_far, Map.put(extra, current, Map.get(extra, current, 0) - needed)}
 
+        # We don't have enough extra
         true ->
-          multiplier = ceil((needed - Map.get(extra, current, 0)) / numProduced[current])
-          totalSoFar = totalSoFar + multiplier * getOresIfTerminal(current, producedBy)
-          extra = Map.put(extra, current, Map.get(extra, current, 0) - (needed - multiplier * numProduced[current]))
+          multiplier = ceil((needed - Map.get(extra, current, 0)) / num_produced[current])
+          total_so_far = total_so_far + multiplier * get_ores_if_terminal(current, produced_by)
 
-          Enum.reduce(producedBy[current], {totalSoFar, extra}, fn ({needed, by}, {totalSoFar, extra}) ->
-            calculateNeededForFuel(by, multiplier * needed, numProduced, producedBy, totalSoFar, extra)
+          extra =
+            Map.put(
+              extra,
+              current,
+              Map.get(extra, current, 0) - (needed - multiplier * num_produced[current])
+            )
+
+          Enum.reduce(produced_by[current], {total_so_far, extra}, fn {needed, by},
+                                                                      {total_so_far, extra} ->
+            calculate_needed_for_fuel(
+              by,
+              multiplier * needed,
+              num_produced,
+              produced_by,
+              total_so_far,
+              extra
+            )
           end)
       end
     end
   end
 
-  def fuelForOres(ores, startFuel, endFuel, numProduced, producedBy) do
-    if startFuel >= endFuel do
-      endFuel
+  def fuel_for_ores(ores, start_fuel, end_fuel, num_produced, produced_by) do
+    if start_fuel >= end_fuel do
+      end_fuel
     else
-      midFuel = div(startFuel + endFuel, 2)
-      if calculateNeededForFuel("FUEL", midFuel, numProduced, producedBy, 0, %{}) |> elem(0) > ores do
-        fuelForOres(ores, startFuel, midFuel - 1, numProduced, producedBy)
+      midFuel = div(start_fuel + end_fuel, 2)
+
+      if calculate_needed_for_fuel("FUEL", midFuel, num_produced, produced_by, 0, %{}) |> elem(0) >
+           ores do
+        fuel_for_ores(ores, start_fuel, midFuel - 1, num_produced, produced_by)
       else
-        fuelForOres(ores, midFuel + 1, endFuel, numProduced, producedBy)
+        fuel_for_ores(ores, midFuel + 1, end_fuel, num_produced, produced_by)
       end
     end
   end
 end
 
-{numProduced, producedBy} =
+{num_produced, produced_by} =
   File.stream!("day14.input")
-    |> Enum.map(fn line ->
-         chemicals =
-           Regex.scan(~r/(\d+) ([A-Z]+)/, line)
-             |> Enum.map(fn [_, count, chemical] -> {String.to_integer(count), chemical} end)
-         {Enum.at(chemicals, -1), Enum.slice(chemicals, 0..-2)}
-       end)
-    |> Enum.reduce({%{}, %{}}, fn ({{countProduced, produced}, producers}, {numProduced, producedBy}) ->
-         numProduced = Map.put(numProduced, produced, countProduced)
-         producedBy = Map.put(producedBy, produced, producers)
-         {numProduced, producedBy} 
-       end)
+  |> Enum.map(fn line ->
+    chemicals =
+      Regex.scan(~r/(\d+) ([A-Z]+)/, line)
+      |> Enum.map(fn [_, count, chemical] -> {String.to_integer(count), chemical} end)
+
+    {Enum.at(chemicals, -1), Enum.slice(chemicals, 0..-2)}
+  end)
+  |> Enum.reduce({%{}, %{}}, fn {{count_produced, produced}, producers},
+                                {num_produced, produced_by} ->
+    num_produced = Map.put(num_produced, produced, count_produced)
+    produced_by = Map.put(produced_by, produced, producers)
+    {num_produced, produced_by}
+  end)
 
 case System.argv() do
   ["1"] ->
-    Day14.calculateNeededForFuel("FUEL", 1, numProduced, producedBy, 0, %{})
-      |> elem(0)
-      |> IO.puts
+    Day14.calculate_needed_for_fuel("FUEL", 1, num_produced, produced_by, 0, %{})
+    |> elem(0)
+    |> IO.puts()
 
   ["2"] ->
-    trillion = 1000000000000
-    startFuel = div(trillion, Day14.calculateNeededForFuel("FUEL", 1, numProduced, producedBy, 0, %{}) |> elem(0))
-    endFuel =
-      Stream.iterate(startFuel, fn fuel -> fuel + startFuel end)
-        |> Enum.find(fn fuel -> Day14.calculateNeededForFuel("FUEL", fuel, numProduced, producedBy, 0, %{}) |> elem(0) > trillion end)
+    trillion = 1_000_000_000_000
 
-    Day14.fuelForOres(trillion, startFuel, endFuel, numProduced, producedBy)
-      |> IO.puts
+    start_fuel =
+      div(
+        trillion,
+        Day14.calculate_needed_for_fuel("FUEL", 1, num_produced, produced_by, 0, %{}) |> elem(0)
+      )
+
+    end_fuel =
+      Stream.iterate(start_fuel, fn fuel -> fuel + start_fuel end)
+      |> Enum.find(fn fuel ->
+        Day14.calculate_needed_for_fuel("FUEL", fuel, num_produced, produced_by, 0, %{})
+        |> elem(0) >
+          trillion
+      end)
+
+    Day14.fuel_for_ores(trillion, start_fuel, end_fuel, num_produced, produced_by)
+    |> IO.puts()
 end
